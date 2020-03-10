@@ -1,6 +1,7 @@
 #include "emonesp.h"
 #include "app_config.h"
 #include "hal.h"
+#include "tesla_client.h"
 
 #include <Arduino.h>
 #include <EEPROM.h>             // Save config settings
@@ -55,6 +56,9 @@ uint32_t flags;
 #define EEPROM_OHM_KEY_SIZE           10
 #define EEPROM_FLAGS_SIZE             4
 #define EEPROM_HOSTNAME_SIZE          32
+#define EEPROM_TESLA_USER_SIZE        32
+#define EEPROM_TESLA_PASS_SIZE        32
+#define EEPROM_TESLA_VEHIDX_SIZE      1
 #define EEPROM_SIZE                   1024
 
 #define EEPROM_ESID_START             0
@@ -91,7 +95,13 @@ uint32_t flags;
 #define EEPROM_EMON_API_KEY_END       (EEPROM_EMON_API_KEY_START + EEPROM_EMON_API_KEY_SIZE)
 #define EEPROM_HOSTNAME_START         EEPROM_EMON_API_KEY_END
 #define EEPROM_HOSTNAME_END           (EEPROM_HOSTNAME_START + EEPROM_HOSTNAME_SIZE)
-#define EEPROM_CONFIG_END             EEPROM_HOSTNAME_END
+#define EEPROM_TESLA_USER_START       EEPROM_HOSTNAME_END
+#define EEPROM_TESLA_USER_END         (EEPROM_TESLA_USER_START + EEPROM_TESLA_USER_SIZE)
+#define EEPROM_TESLA_PASS_START       EEPROM_TESLA_USER_END
+#define EEPROM_TESLA_PASS_END         (EEPROM_TESLA_PASS_START + EEPROM_TESLA_PASS_SIZE)
+#define EEPROM_TESLA_VEHIDX_START       EEPROM_TESLA_PASS_END
+#define EEPROM_TESLA_VEHIDX_END         (EEPROM_TESLA_VEHIDX_START + EEPROM_TESLA_VEHIDX_SIZE)
+#define EEPROM_CONFIG_END             EEPROM_TESLA_VEHIDX_END
 
 #if EEPROM_CONFIG_END > EEPROM_SIZE
 #error EEPROM_SIZE too small
@@ -233,6 +243,23 @@ config_load_settings() {
   // Ohm Connect Settings
   EEPROM_read_string(EEPROM_OHM_KEY_START, EEPROM_OHM_KEY_SIZE, ohm);
 
+  // Tesla Settings
+  {
+    String str = "";
+    EEPROM_read_string(EEPROM_TESLA_USER_START, EEPROM_TESLA_USER_SIZE,
+		       str, "");
+    teslaClient.setUser(str.c_str());
+    str = "";
+    EEPROM_read_string(EEPROM_TESLA_PASS_START, EEPROM_TESLA_PASS_SIZE,
+		       str, "");
+    teslaClient.setPass(str.c_str());
+    uint8_t uvehidx = EEPROM.read(EEPROM_TESLA_VEHIDX_START);
+    int vehidx;
+    if (uvehidx == ((uint8_t)0xff)) vehidx = -1;
+    else vehidx = (int)uvehidx;
+    teslaClient.setVehicleIdx(vehidx);
+  }
+
   // Flags
   EEPROM_read_uint24(EEPROM_FLAGS_START, flags, 0);
 
@@ -318,6 +345,35 @@ config_save_admin(String user, String pass) {
 
   EEPROM_write_string(EEPROM_WWW_USER_START, EEPROM_WWW_USER_SIZE, user);
   EEPROM_write_string(EEPROM_WWW_PASS_START, EEPROM_WWW_PASS_SIZE, pass);
+
+  EEPROM.end();
+}
+
+void
+config_save_tesla(bool enable,String user, String pass) {
+  EEPROM.begin(EEPROM_SIZE);
+
+  flags = flags & ~CONFIG_SERVICE_TESLA;
+  if(enable) {
+    flags |= CONFIG_SERVICE_TESLA;
+  }
+
+  teslaClient.setUser(user.c_str());
+  teslaClient.setPass(pass.c_str());
+
+  EEPROM_write_string(EEPROM_TESLA_USER_START, EEPROM_TESLA_USER_SIZE, user);
+  EEPROM_write_string(EEPROM_TESLA_PASS_START, EEPROM_TESLA_PASS_SIZE, pass);
+
+  EEPROM_write_uint24(EEPROM_FLAGS_START, flags);
+
+  EEPROM.end();
+}
+
+void
+config_save_tesla_vehidx(int vehidx) {
+  EEPROM.begin(EEPROM_SIZE);
+
+  EEPROM.write(EEPROM_TESLA_VEHIDX_START,(uint8_t)vehidx);
 
   EEPROM.end();
 }

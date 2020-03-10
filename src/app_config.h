@@ -43,6 +43,7 @@ extern uint32_t flags;
 #define CONFIG_SERVICE_EMONCMS  (1 << 0)
 #define CONFIG_SERVICE_MQTT     (1 << 1)
 #define CONFIG_SERVICE_OHM      (1 << 2)
+#define CONFIG_SERVICE_TESLA    (1 << 3)
 
 inline bool config_emoncms_enabled() {
   return CONFIG_SERVICE_EMONCMS == (flags & CONFIG_SERVICE_EMONCMS);
@@ -54,6 +55,10 @@ inline bool config_mqtt_enabled() {
 
 inline bool config_ohm_enabled() {
   return CONFIG_SERVICE_OHM == (flags & CONFIG_SERVICE_OHM);
+}
+
+inline bool config_tesla_enabled() {
+  return CONFIG_SERVICE_TESLA == (flags & CONFIG_SERVICE_TESLA);
 }
 
 // Ohm Connect Settings
@@ -93,6 +98,12 @@ extern void config_save_wifi(String qsid, String qpass);
 // Save the Ohm settings
 // -------------------------------------------------------------------
 extern void config_save_ohm(bool enable, String qohm);
+
+// -------------------------------------------------------------------
+// Save the Tesla details
+// -------------------------------------------------------------------
+extern void config_save_tesla(bool enable, String user, String pass);
+extern void config_save_tesla_vehidx(int vehidx);
 
 // -------------------------------------------------------------------
 // Save the flags
