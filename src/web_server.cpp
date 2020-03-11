@@ -459,7 +459,9 @@ handleSaveTeslaVI(MongooseHttpServerRequest *request) {
   }
 
   String svi = request->getParam("vi");
-  config_save_tesla_vehidx(atoi(svi.c_str()));
+  int vehidx = atoi(svi.c_str());
+  teslaClient.setVehicleIdx(vehidx);
+  config_save_tesla_vehidx(vehidx);
 
   char tmpStr[200];
   snprintf(tmpStr, sizeof(tmpStr), "Saved: %s",svi.c_str());
