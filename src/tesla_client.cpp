@@ -108,6 +108,7 @@ void TeslaClient::_handleResponse()
     }
     if (_respPhase == 1) {
       while (_client.available()) {
+	vTaskDelay(10);
 	_resp.respStr += _client.readString();
       }
 
