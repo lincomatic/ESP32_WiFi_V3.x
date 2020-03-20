@@ -479,6 +479,7 @@ void TeslaClient::requestAccessToken()
   extraheaders += "\r\n";
   extraheaders += "Content-Type: application/json; charset=utf-8\r\n";
   req->addExtraHeaders(extraheaders.c_str());
+  //broken  req->setContentType("application/json; charset=utf-8");
   req->setContent((const uint8_t*)s.c_str(),s.length());
   req->onResponse([&](MongooseHttpClientResponse *response) {
       DEBUG.println("resp");
