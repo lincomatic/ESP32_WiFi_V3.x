@@ -7,7 +7,7 @@
 #ifndef _TESLA_CLIENT_H_
 #define _TESLA_CLIENT_H_
 
-#define USE_WFCS // use WiFiClientSecure instead of Mongoose
+//#define USE_WFCS // use WiFiClientSecure instead of Mongoose
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -89,11 +89,11 @@ class TeslaClient {
     _resp.respStr = "";
   }
   void _handleResponse();
-  bool _isBusy() { return _activeRequest == TAR_NONE ? false : true; }
 #else
   MongooseHttpClient _client;
 #endif
 
+  bool _isBusy() { return _activeRequest == TAR_NONE ? false : true; }
   void _cleanVehicles();
 
  public:
