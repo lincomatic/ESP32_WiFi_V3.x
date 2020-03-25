@@ -7,6 +7,7 @@
 #include "tesla_client.h"
 #include "debug.h"
 
+#define VIN_IS_ID
 #define TESLA_USER_AGENT "007"
 #define TESLA_CLIENT_ID "81527cff06843c8634fdc09e8ac0abefb46ac849f38fe1e431c2ef2106796384"
 #define TESLA_CLIENT_SECRET "c7257eb71a564034f9419ee651c7d0e5f7aa6bfbd18bafb5c5c033b093bb2fa3"
@@ -269,6 +270,7 @@ void TeslaClient::requestVehicles()
 	    _id = new String[_vehicleCnt];
 	    _displayName = new String[_vehicleCnt];
 
+#ifndef VIN_IS_ID
 	    // ArduinoJson has a bug, and parses the id as a float.
 	    // use this ugly workaround.
 	    const char *sj = json.c_str();
@@ -281,7 +283,7 @@ void TeslaClient::requestVehicles()
 		sj = sid;
 	      }
 	    }
-	    
+#endif	    
 	    const size_t capacity = _vehicleCnt*JSON_ARRAY_SIZE(2) + JSON_ARRAY_SIZE(_vehicleCnt) + JSON_OBJECT_SIZE(2) + _vehicleCnt*JSON_OBJECT_SIZE(14) + _vehicleCnt*700;
 	    DynamicJsonDocument doc(capacity);
 	    deserializeJson(doc, json);
@@ -289,7 +291,11 @@ void TeslaClient::requestVehicles()
 	    
 	    for (int i=0;i < _vehicleCnt;i++) {
 	      JsonObject responsei = jresponse[i];
+#ifdef VIN_IS_ID
+	      _id[i] = responsei["vin"].as<String>();
+#else
 	      // doesn't work.. returns converted float _id[i] = responsei["id"].as<String>();
+#endif
 	      _displayName[i] = responsei["display_name"].as<String>();
 	      DEBUG.print("id: ");DEBUG.print(_id[i]);
 	      DEBUG.print(" name: ");DEBUG.println(_displayName[i]);
@@ -576,6 +582,7 @@ void TeslaClient::requestVehicles()
 	_id = new String[_vehicleCnt];
 	_displayName = new String[_vehicleCnt];
 	  
+#ifndef VIN_IS_ID
 	  // ArduinoJson has a bug, and parses the id as a float.
 	  // use this ugly workaround.
 	  const char *sj = json;
@@ -588,6 +595,24 @@ void TeslaClient::requestVehicles()
 	      sj = sid;
 	}
       }
+#endif
+
+	  const size_t capacity = _vehicleCnt*JSON_ARRAY_SIZE(2) + JSON_ARRAY_SIZE(_vehicleCnt) + JSON_OBJECT_SIZE(2) + _vehicleCnt*JSON_OBJECT_SIZE(14) + _vehicleCnt*700;
+	  DynamicJsonDocument doc(capacity);
+	  deserializeJson(doc, json);
+	  JsonArray jresponse = doc["response"];
+	  
+	  for (int i=0;i < _vehicleCnt;i++) {
+	    JsonObject responsei = jresponse[i];
+#ifdef VIN_IS_ID
+	      _id[i] = responsei["vin"].as<String>();
+#else
+	      // doesn't work.. returns converted float _id[i] = responsei["id"].as<String>();
+#endif
+	    _displayName[i] = responsei["display_name"].as<String>();
+	    DEBUG.print("id: ");DEBUG.print(_id[i]);
+	    DEBUG.print(" name: ");DEBUG.println(_displayName[i]);
+	  }
 	}
       }
       _activeRequest = TAR_NONE;
