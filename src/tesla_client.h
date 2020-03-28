@@ -70,6 +70,7 @@ class TeslaClient {
   int _vehicleCnt;
   int _curVehIdx;
   String *_id;
+  String *_vin;
   String *_displayName;
 
   TESLA_CHARGE_INFO _chargeInfo;
@@ -111,6 +112,7 @@ class TeslaClient {
   void setVehicleIdx(int vehidx) { _curVehIdx = vehidx; }
   int getCurVehicleIdx() { return _curVehIdx; }
   String getVehicleId(int vehidx);
+  String getVIN(int vehidx);
   String getVehicleDisplayName(int vehidx);
   const char *getUser() { return _teslaUser.c_str(); }
   const char *getPass() { return _teslaPass.c_str(); }

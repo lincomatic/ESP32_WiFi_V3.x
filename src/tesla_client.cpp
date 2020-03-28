@@ -7,7 +7,6 @@
 #include "tesla_client.h"
 #include "debug.h"
 
-#define VIN_IS_ID
 #define TESLA_USER_AGENT "007"
 #define TESLA_CLIENT_ID "81527cff06843c8634fdc09e8ac0abefb46ac849f38fe1e431c2ef2106796384"
 #define TESLA_CLIENT_SECRET "c7257eb71a564034f9419ee651c7d0e5f7aa6bfbd18bafb5c5c033b093bb2fa3"
@@ -40,6 +39,7 @@ TeslaClient::TeslaClient()
   _lastRequestStart = 0;
   _activeRequest = TAR_NONE;
   _id = NULL;
+  _vin = NULL;
   _displayName = NULL;
   _accessToken = "";
   _chargeInfo.isValid = false;
@@ -64,6 +64,11 @@ void TeslaClient::_cleanVehicles()
     _id = NULL;
   }
 
+  if (_vin) {
+    delete [] _vin;
+    _vin = NULL;
+  }
+
   if (_displayName) {
     delete [] _displayName;
     _displayName = NULL;
@@ -77,6 +82,14 @@ String TeslaClient::getVehicleId(int vehidx)
 {
   if ((vehidx >= 0) && (vehidx < _vehicleCnt)) {
     return _id[vehidx];
+  }
+  else return String("");
+}
+
+String TeslaClient::getVIN(int vehidx)
+{
+  if ((vehidx >= 0) && (vehidx < _vehicleCnt)) {
+    return _vin[vehidx];
   }
   else return String("");
 }
@@ -268,9 +281,9 @@ void TeslaClient::requestVehicles()
 	    DEBUG.print("vcnt: ");DEBUG.println(_vehicleCnt);
 
 	    _id = new String[_vehicleCnt];
+	    _vin = new String[_vehicleCnt];
 	    _displayName = new String[_vehicleCnt];
 
-#ifndef VIN_IS_ID
 	    // ArduinoJson has a bug, and parses the id as a float.
 	    // use this ugly workaround.
 	    const char *sj = json.c_str();
@@ -283,7 +296,6 @@ void TeslaClient::requestVehicles()
 		sj = sid;
 	      }
 	    }
-#endif	    
 	    const size_t capacity = _vehicleCnt*JSON_ARRAY_SIZE(2) + JSON_ARRAY_SIZE(_vehicleCnt) + JSON_OBJECT_SIZE(2) + _vehicleCnt*JSON_OBJECT_SIZE(14) + _vehicleCnt*700;
 	    DynamicJsonDocument doc(capacity);
 	    deserializeJson(doc, json);
@@ -291,13 +303,11 @@ void TeslaClient::requestVehicles()
 	    
 	    for (int i=0;i < _vehicleCnt;i++) {
 	      JsonObject responsei = jresponse[i];
-#ifdef VIN_IS_ID
-	      _id[i] = responsei["vin"].as<String>();
-#else
+	      _vin[i] = responsei["vin"].as<String>();
 	      // doesn't work.. returns converted float _id[i] = responsei["id"].as<String>();
-#endif
 	      _displayName[i] = responsei["display_name"].as<String>();
 	      DEBUG.print("id: ");DEBUG.print(_id[i]);
+	      DEBUG.print("vin: ");DEBUG.print(_vin[i]);
 	      DEBUG.print(" name: ");DEBUG.println(_displayName[i]);
 	    }
 
@@ -479,12 +489,9 @@ void TeslaClient::requestAccessToken()
     
   MongooseHttpClientRequest *req = _client.beginRequest(uri.c_str());
   req->setMethod(HTTP_POST);
-  String extraheaders = "Connection: keep-alive\r\n";
-  extraheaders += "User-Agent: ";
-  extraheaders += _userAgent;
-  extraheaders += "\r\n";
-  extraheaders += "Content-Type: application/json; charset=utf-8\r\n";
-  req->addExtraHeaders(extraheaders.c_str());
+  req->addHeader("Connection","keep-alive");
+  req->addHeader("User-Agent",_userAgent);
+  req->addHeader("Content-Type","application/json; charset=utf-8");
   //broken  req->setContentType("application/json; charset=utf-8");
   req->setContent((const uint8_t*)s.c_str(),s.length());
   req->onResponse([&](MongooseHttpClientResponse *response) {
@@ -502,12 +509,12 @@ void TeslaClient::requestAccessToken()
 	const char *cjson = (const char *)response->body();
 	if (cjson) {
 	  String json = cjson;
-      const size_t capacity = JSON_OBJECT_SIZE(5) + 220;
-      DynamicJsonDocument doc(capacity);
-      deserializeJson(doc, json);
+	  const size_t capacity = JSON_OBJECT_SIZE(5) + 220;
+	  DynamicJsonDocument doc(capacity);
+	  deserializeJson(doc, json);
 	  const char *token = (const char *)doc["access_token"];;
 	  if (token) {
-      _accessToken = "Bearer ";
+	    _accessToken = "Bearer ";
 	    _accessToken += token;
 	    DEBUG.print("token: ");DEBUG.println(_accessToken);
 	    _lastRequestStart = 0; // allow requestVehicles to happen immediately
@@ -516,11 +523,11 @@ void TeslaClient::requestAccessToken()
 	    _accessToken = "";
 	    DEBUG.println("token error");
 	  }
-
-      //const char* token_type = doc["token_type"];
-      //long expires_in = doc["expires_in"];
-      //const char* refresh_token = doc["refresh_token"];
-      //long created_at = doc["created_at"]; // 1583079526
+	  
+	  //const char* token_type = doc["token_type"];
+	  //long expires_in = doc["expires_in"];
+	  //const char* refresh_token = doc["refresh_token"];
+	  //long created_at = doc["created_at"]; // 1583079526
 	}
       }
       _activeRequest = TAR_NONE;
@@ -542,17 +549,10 @@ void TeslaClient::requestVehicles()
 
   MongooseHttpClientRequest *req = _client.beginRequest(uri.c_str());
   req->setMethod(HTTP_GET);
-  /* broken
+  req->addHeader("Connection","keep-alive");
   req->addHeader("User-Agent",_userAgent);
-  req->addHeader("Authorization", _accessToken);
-  */
-  String extraheaders = "Connection: keep-alive\r\n";
-  extraheaders += "User-Agent: ";
-  extraheaders += _userAgent;
-  extraheaders += "\r\n";
-  extraheaders += "Accept: */*\r\n";
-  extraheaders += "Authorization: " + _accessToken + "\r\n";
-  req->addExtraHeaders(extraheaders.c_str());
+  req->addHeader("Accept","*/*");
+  req->addHeader("Authorization",_accessToken.c_str());
   req->onResponse([&](MongooseHttpClientResponse *response) {
       DEBUG.println("resp");
       printResponse(response);
@@ -563,14 +563,14 @@ void TeslaClient::requestVehicles()
 	  return;
       }
       else if (response->respCode() == 200) {
-      const char *json = (const char *)response->body();
-
+	const char *json = (const char *)response->body();
+	
 	if (strstr(json,_badAuthStr)) {
 	  _accessToken = "";
 	  _activeRequest = TAR_NONE;
 	  return;
 	}
-
+	
 	
 	char *sc = strstr(json,"\"count\":");
 	if (sc) {
@@ -578,11 +578,11 @@ void TeslaClient::requestVehicles()
 	  sc += 8;
 	  sscanf(sc,"%d",&_vehicleCnt);
 	  DEBUG.print("vcnt: ");DEBUG.println(_vehicleCnt);
-
-	_id = new String[_vehicleCnt];
-	_displayName = new String[_vehicleCnt];
 	  
-#ifndef VIN_IS_ID
+	  _id = new String[_vehicleCnt];
+	  _vin = new String[_vehicleCnt];
+	  _displayName = new String[_vehicleCnt];
+	  
 	  // ArduinoJson has a bug, and parses the id as a float.
 	  // use this ugly workaround.
 	  const char *sj = json;
@@ -593,9 +593,8 @@ void TeslaClient::requestVehicles()
 	      _id[v] = "";
 	      while (*sid != ',') _id[v] += *(sid++);
 	      sj = sid;
-	}
-      }
-#endif
+	    }
+	  }
 
 	  const size_t capacity = _vehicleCnt*JSON_ARRAY_SIZE(2) + JSON_ARRAY_SIZE(_vehicleCnt) + JSON_OBJECT_SIZE(2) + _vehicleCnt*JSON_OBJECT_SIZE(14) + _vehicleCnt*700;
 	  DynamicJsonDocument doc(capacity);
@@ -604,20 +603,18 @@ void TeslaClient::requestVehicles()
 	  
 	  for (int i=0;i < _vehicleCnt;i++) {
 	    JsonObject responsei = jresponse[i];
-#ifdef VIN_IS_ID
-	      _id[i] = responsei["vin"].as<String>();
-#else
-	      // doesn't work.. returns converted float _id[i] = responsei["id"].as<String>();
-#endif
+	    _vin[i] = responsei["vin"].as<String>();
+	    // doesn't work.. returns converted float _id[i] = responsei["id"].as<String>();
 	    _displayName[i] = responsei["display_name"].as<String>();
 	    DEBUG.print("id: ");DEBUG.print(_id[i]);
+	    DEBUG.print("vin: ");DEBUG.print(_vin[i]);
 	    DEBUG.print(" name: ");DEBUG.println(_displayName[i]);
 	  }
 	}
       }
       _activeRequest = TAR_NONE;
     });
-  _client.send(req);
+    _client.send(req);
 }
 
 
@@ -642,28 +639,21 @@ void TeslaClient::requestChargeState()
 
   MongooseHttpClientRequest *req = _client.beginRequest(uri.c_str());
   req->setMethod(HTTP_GET);
-  /*
+  req->addHeader("Connection","keep-alive");
   req->addHeader("User-Agent",_userAgent);
-  req->addHeader("Authorization", _accessToken);
-  */
-  String extraheaders = "Connection: keep-alive\r\n";
-  extraheaders += "User-Agent: ";
-  extraheaders += _userAgent;
-  extraheaders += "\r\n";
-  extraheaders += "Accept: */*\r\n";
-  extraheaders += "Authorization: " + _accessToken + "\r\n";
-  req->addExtraHeaders(extraheaders.c_str());
+  req->addHeader("Accept","*/*");
+  req->addHeader("Authorization",_accessToken.c_str());
   req->onResponse([&](MongooseHttpClientResponse *response) {
       DEBUG.println("resp");
       printResponse(response);
 
       if (response->respCode() == 200) {
 	const char *json = (const char *)response->body();
-      const size_t capacity = JSON_OBJECT_SIZE(1) + JSON_OBJECT_SIZE(43) + 1500;
-      DynamicJsonDocument doc(capacity);
-      deserializeJson(doc, json);
-
-      JsonObject jresponse = doc["response"];
+	const size_t capacity = JSON_OBJECT_SIZE(1) + JSON_OBJECT_SIZE(43) + 1500;
+	DynamicJsonDocument doc(capacity);
+	deserializeJson(doc, json);
+      
+	JsonObject jresponse = doc["response"];
       
 	_chargeInfo.batteryRange = jresponse["battery_range"];
 	_chargeInfo.chargeEnergyAdded = jresponse["charge_energy_added"];
@@ -680,40 +670,40 @@ void TeslaClient::requestChargeState()
 	_chargeInfo.isValid = true;
       
 #ifdef notyet
-      bool response_battery_heater_on = jresponse["battery_heater_on"]; // false
-      int response_charge_current_request = jresponse["charge_current_request"]; // 24
-      int response_charge_current_request_max = jresponse["charge_current_request_max"]; // 48
-      bool response_charge_enable_request = jresponse["charge_enable_request"]; // true
+	bool response_battery_heater_on = jresponse["battery_heater_on"]; // false
+	int response_charge_current_request = jresponse["charge_current_request"]; // 24
+	int response_charge_current_request_max = jresponse["charge_current_request_max"]; // 48
+	bool response_charge_enable_request = jresponse["charge_enable_request"]; // true
       
-      int response_charge_limit_soc_max = jresponse["charge_limit_soc_max"]; // 100
-      int response_charge_limit_soc_min = jresponse["charge_limit_soc_min"]; // 50
-      int response_charge_limit_soc_std = jresponse["charge_limit_soc_std"]; // 90
-      float response_charge_miles_added_ideal = jresponse["charge_miles_added_ideal"]; // 205.5
-      bool response_charge_port_door_open = jresponse["charge_port_door_open"]; // true
-      const char* response_charge_port_latch = jresponse["charge_port_latch"]; // "Engaged"
-      int response_charge_rate = jresponse["charge_rate"]; // 0
-      bool response_charge_to_max_range = jresponse["charge_to_max_range"]; // false
-      int response_charger_actual_current = jresponse["charger_actual_current"]; // 0
-      int response_charger_pilot_current = jresponse["charger_pilot_current"]; // 48
-      int response_charger_power = jresponse["charger_power"]; // 0
+	int response_charge_limit_soc_max = jresponse["charge_limit_soc_max"]; // 100
+	int response_charge_limit_soc_min = jresponse["charge_limit_soc_min"]; // 50
+	int response_charge_limit_soc_std = jresponse["charge_limit_soc_std"]; // 90
+	float response_charge_miles_added_ideal = jresponse["charge_miles_added_ideal"]; // 205.5
+	bool response_charge_port_door_open = jresponse["charge_port_door_open"]; // true
+	const char* response_charge_port_latch = jresponse["charge_port_latch"]; // "Engaged"
+	int response_charge_rate = jresponse["charge_rate"]; // 0
+	bool response_charge_to_max_range = jresponse["charge_to_max_range"]; // false
+	int response_charger_actual_current = jresponse["charger_actual_current"]; // 0
+	int response_charger_pilot_current = jresponse["charger_pilot_current"]; // 48
+	int response_charger_power = jresponse["charger_power"]; // 0
       
-      const char* response_charging_state = jresponse["charging_state"]; // "Complete"
-      const char* response_conn_charge_cable = jresponse["conn_charge_cable"]; // "IEC"
-      float response_est_battery_range = jresponse["est_battery_range"]; // 187.27
-      const char* response_fast_charger_brand = jresponse["fast_charger_brand"]; // ""
-      bool response_fast_charger_present = jresponse["fast_charger_present"]; // false
-      const char* response_fast_charger_type = jresponse["fast_charger_type"]; // ""
-      float response_ideal_battery_range = jresponse["ideal_battery_range"]; // 230.21
-      bool response_managed_charging_active = jresponse["managed_charging_active"]; // false
-      bool response_managed_charging_user_canceled = jresponse["managed_charging_user_canceled"]; // false
-      int response_max_range_charge_counter = jresponse["max_range_charge_counter"]; // 0
-      int response_minutes_to_full_charge = jresponse["minutes_to_full_charge"]; // 0
-      bool response_not_enough_power_to_heat = jresponse["not_enough_power_to_heat"]; // false
-      bool response_scheduled_charging_pending = jresponse["scheduled_charging_pending"]; // false
+	const char* response_charging_state = jresponse["charging_state"]; // "Complete"
+	const char* response_conn_charge_cable = jresponse["conn_charge_cable"]; // "IEC"
+	float response_est_battery_range = jresponse["est_battery_range"]; // 187.27
+	const char* response_fast_charger_brand = jresponse["fast_charger_brand"]; // ""
+	bool response_fast_charger_present = jresponse["fast_charger_present"]; // false
+	const char* response_fast_charger_type = jresponse["fast_charger_type"]; // ""
+	float response_ideal_battery_range = jresponse["ideal_battery_range"]; // 230.21
+	bool response_managed_charging_active = jresponse["managed_charging_active"]; // false
+	bool response_managed_charging_user_canceled = jresponse["managed_charging_user_canceled"]; // false
+	int response_max_range_charge_counter = jresponse["max_range_charge_counter"]; // 0
+	int response_minutes_to_full_charge = jresponse["minutes_to_full_charge"]; // 0
+	bool response_not_enough_power_to_heat = jresponse["not_enough_power_to_heat"]; // false
+	bool response_scheduled_charging_pending = jresponse["scheduled_charging_pending"]; // false
       
-      long response_timestamp = jresponse["timestamp"]; // 1583079530271
-      bool response_trip_charging = jresponse["trip_charging"]; // false
-      int response_usable_battery_level = jresponse["usable_battery_level"]; // 83
+	long response_timestamp = jresponse["timestamp"]; // 1583079530271
+	bool response_trip_charging = jresponse["trip_charging"]; // false
+	int response_usable_battery_level = jresponse["usable_battery_level"]; // 83
 #endif // notyet
       }
       _activeRequest = TAR_NONE;
